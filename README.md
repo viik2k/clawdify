@@ -1,5 +1,7 @@
 # clawdify 🦀
 
+![clawdify in a Claude Code terminal: Clawd in a banner above the prompt, with a custom footer underneath](clawdify-banner-terminal.png)
+
 Restyle Claude Code from inside Claude Code. A [mod](https://claude.com/blog/claude-code-mods) that lets you change the spinner, the turn footer, the prompt hint, a banner above the prompt, the row under it, how transcript rows look, and Claude's persona. Use the `/clawdify` pane, the subcommands, or just say what you want:
 
 ```
