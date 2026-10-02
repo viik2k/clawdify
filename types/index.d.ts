@@ -34,6 +34,6 @@ export type ClawdifyContext = ClawdifyUsage & { cwd: string; model: string; now:
 
 declare module 'claude-code' {
   interface PluginState {
-    clawdify: { settings: ClawdifySettings; tab: string; context: ClawdifyContext; frame: number } // frame: ms of Clawd animation so far
+    clawdify: { settings: ClawdifySettings; presets: Record<string, Partial<ClawdifySettings>>; tab: string; context: ClawdifyContext; frame: number } // frame: ms of Clawd animation so far
   }
 }

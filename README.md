@@ -28,7 +28,9 @@ Or run it from a clone: `claude --plugin-dir path/to/clawdify`.
 | `/clawdify <anything>` | Describe what you want; Claude picks the settings |
 | `/clawdify get` | List what you changed |
 | `/clawdify set <key> <value>` | Change one setting (empty value = default) |
-| `/clawdify preset <name>` | Layer a preset on top: `clawd`, `pirate`, `hacker`, `zen`, `minimal` |
+| `/clawdify preset <name>` | Layer a preset on top: `clawd`, `pirate`, `hacker`, `zen`, `minimal`, or any friend by name (`campfire`, `duck`, `binary-rain`, …). One you saved brings back exactly that look instead |
+| `/clawdify save <name>` | Save your current look as your own preset (also on the pane's presets tab) |
+| `/clawdify delete <name>` | Delete a preset you saved |
 | `/clawdify reset [key]` | Back to Claude Code defaults |
 | `/clawdify export` / `import <json>` | Share settings as JSON |
 | `/clawdify reload` | Pick up edits made to the saved settings file |
@@ -50,6 +52,7 @@ They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.js
 
 - Lists are comma-separated: `Clawing, Scuttling, Pinching`.
 - Stock Clawd loops for `mascot`: `scuttle`, `hop`, `wave`, `cheer`, `think`, `snooze`, `peek`, `idle`. The loop plays while Claude works; idle, Clawd blinks and glances about.
+- Or swap Clawd for a friend: `snail`, `bat`, `spider`, `bunny`, `dog`, `penguin`, `snake`, `jellyfish`, `duck`, `turtle`, `hourglass`, `plant`, `campfire`, `rain`, `moon`, `equalizer`, `heartbeat`, `screensaver`, `binary-rain`, `train`. Same deal: the loop plays while Claude works, and idle it holds still.
 - Clawd stays above the prompt (`mascot`). Want him elsewhere? `{clawd}` is a one-row Clawd (▐▛███▜▌), animated in `spinnerSuffix`; the footer never draws him.
 - Templates take `{model}`, `{cwd}`, `{path}`, `{time}`, `{date}`; `doneTemplate` also takes `{word}`, and its `{time}` is the turn's length.
 - `footer` also takes `{branch}`, `{context}`, `{ctxbar}`, `{5h}`, `{7d}`, `{cost}`; split it with ` · ` and percentages turn amber past 60 and rust past 85.

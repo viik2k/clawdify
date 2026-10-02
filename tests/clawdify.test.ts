@@ -2,7 +2,8 @@ import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { NO_USAGE, fill, rewrite } from '../hooks/settings'
+import { FIELDS, NO_USAGE, PRESETS, fill, rewrite } from '../hooks/settings'
+import { FRIENDS } from '../hooks/crabs'
 
 // The test's own hooks stand for the engine: the last props the plugin passed down, and stubs for the rest.
 // others: store files other installs of clawdify left, by name, oldest first.
@@ -228,10 +229,11 @@ test('a fresh install adopts the newest settings another install saved', async (
   const seen = engine(on, undefined, {
     'clawdify_inline-old.json': '{"settings":{"doneVerbs":"Stale"}}',
     'other_x.json': '{"settings":{"doneVerbs":"Wrong"}}',
-    'clawdify_inline-new.json': '{"settings":{"doneVerbs":"Clawed","evil":1}}',
+    'clawdify_inline-new.json': '{"settings":{"doneVerbs":"Clawed","evil":1},"presets":{"work":{"hint":"focus","evil":1},"duck":{"hint":"stolen"}}}',
   })
   await start($)
   expect(seen.disk.settings).toEqual({ doneVerbs: 'Clawed' })
+  expect(seen.disk.presets).toEqual({ work: { hint: 'focus' } })
 })
 
 test('settings survive a /clear, and edits to the saved file land on /clawdify reload', async ($, on) => {
@@ -249,4 +251,61 @@ test('settings survive a /clear, and edits to the saved file land on /clawdify r
   seen.disk.settings = { banner: 'edited banner', doneVerbs: 'Snipped' }
   await command($, 'set hint she will be right')
   expect(seen.disk.settings).toEqual({ banner: 'edited banner', doneVerbs: 'Snipped', hint: 'she will be right' })
+})
+
+test('a friend plays its own loop while working and holds still while idle, never turning into Clawd', async ($, on) => {
+  const seen = engine(on)
+  await start($)
+  await command($, 'set mascot campfire')
+  const band = async (isWorking: boolean) => JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: { ...BAND, isWorking } }))
+
+  const idle = new Set<string>()
+  for (let i = 0; i < 4; i++) {
+    await seen.clock.advance(120)
+    idle.add(await band(false))
+  }
+  expect(idle.size).toBe(1)
+  expect([...idle][0]).not.toContain('▐▛███▜▌')
+  const flames = new Set<string>()
+  for (let i = 0; i < 4; i++) {
+    await seen.clock.advance(120)
+    flames.add(await band(true))
+  }
+  expect(flames.size).toBeGreaterThan(2)
+  expect([...flames].join()).toContain('▀▚▄▞▀')
+})
+
+test('every friend has a preset that brings it along, and presets only pick listed options', () => {
+  for (const name of Object.keys(FRIENDS)) expect(PRESETS[name]?.mascot).toBe(name)
+  for (const preset of Object.values(PRESETS)) {
+    for (const f of FIELDS) {
+      const value = preset[f.key]
+      if (f.options && value !== undefined) expect(f.options).toContain(value)
+    }
+  }
+})
+
+test('users save their own presets, which bring back exactly that look and outlive a /clear', async ($, on) => {
+  const seen = engine(on)
+  await start($)
+  await command($, 'set hint lights out')
+  await command($, 'set banner my banner')
+  expect((await command($, 'save night-owl')).text).toContain('2 settings')
+  expect((await command($, 'save duck')).text).toContain('built-in')
+  expect((await command($, 'save no spaces!')).text).toContain('Name it')
+
+  await command($, 'preset pirate')
+  await command($, 'preset night-owl')
+  expect(seen.disk.settings).toEqual({ hint: 'lights out', banner: 'my banner' })
+  expect((await command($, 'preset nope')).text).toContain('night-owl')
+
+  // A /clear drops the session copy; the store still has it.
+  seen.disk.settings = {}
+  await command($, 'reload')
+  await command($, 'preset night-owl')
+  expect(seen.disk.settings).toEqual({ hint: 'lights out', banner: 'my banner' })
+
+  expect((await command($, 'delete night-owl')).text).toContain('Deleted')
+  expect(seen.disk.presets).toEqual({})
+  expect((await command($, 'delete night-owl')).text).toContain('no preset')
 })

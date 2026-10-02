@@ -2,14 +2,16 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClawdifySettings } from '../types'
-import { DEFAULTS, FIELDS, PRESETS, TABS, NO_USAGE, brief, unclawd, changed, clawd, clean, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
-import type { Key, Tab } from './settings'
-import { CRABS, crabFrame } from './crabs'
+import { DEFAULTS, FIELDS, PRESETS, PRESET_NAME, TABS, NO_USAGE, brief, unclawd, changed, clawd, clean, cleanSaved, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
+import type { Key, Saved, Tab } from './settings'
+import { CRABS, FRIENDS, crabFrame } from './crabs'
 
 const PANE = 'clawdify'
 const SETTINGS = { plugin: 'clawdify', key: 'settings' } as const
 
 const settings = atom(SETTINGS, DEFAULTS)
+// The user's own presets; the store is the truth, this copy only redraws the pane.
+const saved = atom({ plugin: 'clawdify', key: 'presets' } as const, {} as Saved)
 const tab = atom({ plugin: 'clawdify', key: 'tab' } as const, 'spinner')
 const CONTEXT = { plugin: 'clawdify', key: 'context' } as const
 const context = atom(CONTEXT, { cwd: '', model: '', now: 0, ...NO_USAGE })
@@ -27,7 +29,9 @@ const USAGE = [
   '/clawdify                    open the editor pane',
   '/clawdify get                list what you changed',
   '/clawdify set <key> <value>  change one setting (empty value = default)',
-  '/clawdify preset <name>      apply a preset on top: ' + Object.keys(PRESETS).join(', '),
+  '/clawdify preset <name>      apply a preset on top: ' + Object.keys(PRESETS).join(', ') + ', or one you saved',
+  '/clawdify save <name>        save your current look as a preset of your own',
+  '/clawdify delete <name>      delete a preset you saved',
   '/clawdify reset [key]        back to Claude Code defaults',
   '/clawdify export             copy your settings as JSON',
   '/clawdify import <json>      load settings from JSON',
@@ -41,11 +45,12 @@ const USAGE = [
 type $ = EngineInterface
 
 // ponytail: the engine names no path for $.store; this is where it keeps one on this build.
-const SETTINGS_NOTE = 'The user restyles Claude Code with the clawdify mod. Its saved settings are the "settings" object in ~/.claude/plugins/store/clawdify_*.json (the most recently modified, if several). To change them on request, edit that file (keys and values as /clawdify help lists them, all strings), then tell the user to run /clawdify reload.'
+const SETTINGS_NOTE = 'The user restyles Claude Code with the clawdify mod. Its saved settings are the "settings" object in ~/.claude/plugins/store/clawdify_*.json (the most recently modified, if several), and presets the user saved are its "presets" object (name to settings). To change them on request, edit that file (keys and values as /clawdify help lists them, all strings), then tell the user to run /clawdify reload.'
 
 // The store is the truth; $.state is this session's copy. A /clear starts a new session with no
 // session.start, so the copy is empty until ensure() refills it, and readers fall back to the store meanwhile.
 const stored = async ($: $) => ({ ...DEFAULTS, ...clean(await $.store.get('settings')) })
+const storedPresets = async ($: $) => cleanSaved(await $.store.get('presets'))
 
 const current = async ($: $) => {
   const { value, version } = await $.state.get(SETTINGS)
@@ -62,13 +67,19 @@ const adopt = async ($: $) => {
     .filter(f => f.kind === 'file' && /^clawdify_.*\.json$/.test(f.name))
     .sort((a, b) => b.mtimeMs - a.mtimeMs)
   for (const f of files) {
-    const saved: unknown = await $.fs.read(`${dir}/${f.name}`).then(text => JSON.parse(text).settings).catch(() => undefined)
-    if (saved && typeof saved === 'object') return void (await $.store.set('settings', clean(saved)))
+    const file: unknown = await $.fs.read(`${dir}/${f.name}`).then(text => JSON.parse(text)).catch(() => undefined)
+    const found = file && typeof file === 'object' ? file as Record<string, unknown> : {}
+    if (!found.settings || typeof found.settings !== 'object') continue
+    await $.store.set('settings', clean(found.settings))
+    if (found.presets) await $.store.set('presets', cleanSaved(found.presets))
+    return
   }
 }
 
 const load = async ($: $) => {
   const s = await stored($)
+  const p = await storedPresets($)
+  await update($, saved, () => p)
   return update($, settings, () => s)
 }
 
@@ -104,6 +115,12 @@ const save = async ($: $, change: (old: ClawdifySettings) => ClawdifySettings) =
   return next
 }
 
+const savePresets = async ($: $, change: (old: Saved) => Saved) => {
+  const next = change(await storedPresets($))
+  await $.store.set('presets', next)
+  await update($, saved, () => next)
+}
+
 const describe = (s: ClawdifySettings) => {
   const diff = Object.entries(changed(s))
   return diff.length ? diff.map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n') : 'Everything is at Claude Code defaults.'
@@ -123,10 +140,31 @@ const run = async ($: $, args: string): Promise<string> => {
       return value ? `${key} = ${JSON.stringify(value)}` : `${key} reset to default.`
     }
     case 'preset': {
-      const preset = PRESETS[rest[0] ?? '']
-      if (!preset) return `Presets: ${Object.keys(PRESETS).join(', ')}`
-      await save($, old => ({ ...old, ...preset }))
-      return `Applied preset "${rest[0]}".`
+      const name = rest[0] ?? ''
+      const preset = PRESETS[name]
+      // Built-ins layer on top; one of yours brings back exactly the look you saved.
+      if (preset) await save($, old => ({ ...old, ...preset }))
+      else {
+        const mine = (await storedPresets($))[name]
+        if (!mine) return `Presets: ${Object.keys(PRESETS).join(', ')}
+Yours: ${Object.keys(await storedPresets($)).join(', ') || 'none yet (/clawdify save <name>)'}`
+        await save($, () => ({ ...DEFAULTS, ...mine }))
+      }
+      return `Applied preset "${name}".`
+    }
+    case 'save': {
+      const name = tail
+      if (!PRESET_NAME.test(name)) return 'Name it with letters, digits, - or _ (up to 32): /clawdify save <name>'
+      if (name in PRESETS) return `"${name}" is a built-in preset. Pick another name.`
+      const look = changed(await current($))
+      await savePresets($, old => ({ ...old, [name]: look }))
+      return `Saved preset "${name}" (${Object.keys(look).length} settings). /clawdify preset ${name} brings it back.`
+    }
+    case 'delete': {
+      const name = tail
+      if (!(name in (await storedPresets($)))) return `You have no preset "${name}".`
+      await savePresets($, old => Object.fromEntries(Object.entries(old).filter(([key]) => key !== name)))
+      return `Deleted preset "${name}".`
     }
     case 'reset': {
       const key = rest[0]
@@ -195,7 +233,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'clawdify',
       description: 'Customise Claude Code: spinner, footer, hint, banner, status, transcript, persona',
-      argumentHint: '[what you want | get | set <key> <value> | preset <name> | reset [key] | export | import <json> | reload]',
+      argumentHint: '[what you want | get | set <key> <value> | preset <name> | save <name> | delete <name> | reset [key] | export | import <json> | reload]',
     })
     const tick = async () => {
       const now = await $.clock.now()
@@ -250,6 +288,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const s = await current($)
     const active = (await read($, tab)) as Tab
+    const mine = Object.keys(await read($, saved))
 
     if (e.surface === 'mobile' || e.surface === 'vscode') {
       const { Text } = $.ui.resolve(e)
@@ -269,6 +308,24 @@ export const register: Register = on => {
                 <Button key={`preset-${name}`} label={name} onPress={() => void save($, old => ({ ...old, ...PRESETS[name] }))} />
               ))}
             </Box>
+            <Text dimColor>{'Yours bring back exactly the look you saved. /clawdify delete <name> removes one.'}</Text>
+            {mine.length
+              ? (
+                  <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
+                    {mine.map(name => (
+                      <Button key={`mine-${name}`} label={name} onPress={() => void run($, `preset ${name}`)} />
+                    ))}
+                  </Box>
+                )
+              : null}
+            <Input
+              key="save-as"
+              label="Save current as"
+              placeholder="my-look"
+              value=""
+              submitLabel="save"
+              onSubmit={value => void run($, `save ${value}`).then(text => $.ui.toast(text))}
+            />
             <Box flexDirection="row" columnGap={1}>
               <Button key="export" label="copy JSON" onPress={() => void run($, 'export').then(() => $.ui.toast('Settings copied'))} />
               <Button key="reset" label="reset all" onPress={() => void save($, () => DEFAULTS)} />
@@ -410,7 +467,7 @@ export const register: Register = on => {
                 width={crab ? crab.frames[0]?.[0]?.length ?? 9 : animated ? 15 : 9}
                 paddingLeft={working && !crab ? scuttle(n, 6) : 0}
               >
-                {(crab ? crabFrame(working ? crab : CRABS.idle!, ms) : clawd(n, working)).map((row, i) => <Text key={`clawd-${i}`} color={s.mascotColor || '#d77757'}>{row}</Text>)}
+                {(crab ? (working ? crabFrame(crab, ms) : s.mascot in FRIENDS ? crab.frames[0]! : crabFrame(CRABS.idle!, ms)) : clawd(n, working)).map((row, i) => <Text key={`clawd-${i}`} color={s.mascotColor || '#d77757'}>{row}</Text>)}
               </Box>
             )
           : null}
