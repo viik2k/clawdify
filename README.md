@@ -2,7 +2,7 @@
 
 ![clawdify in a Claude Code terminal: Clawd in a banner above the prompt, with a custom footer underneath](clawdify-banner-terminal.png)
 
-Restyle Claude Code from inside Claude Code. A [mod](https://claude.com/blog/claude-code-mods) that lets you change the spinner, the turn footer, the prompt hint, a banner above the prompt, the row under it, how transcript rows look, and Claude's persona. Use the `/clawdify` pane, the subcommands, or just say what you want:
+Restyle Claude Code from inside Claude Code. A [mod](https://claude.com/blog/claude-code-mods) that lets you change the spinner, the turn footer, the prompt hint, a banner above the prompt, the row under it, and how transcript rows look. It never touches Claude's system prompt. Use the `/clawdify` pane, the subcommands, or just say what you want:
 
 ```
 /clawdify make it feel like a submarine
@@ -37,7 +37,7 @@ Or run it from a clone: `claude --plugin-dir path/to/clawdify`.
 
 Settings persist across sessions and `/clear`. Empty means Claude Code's own behaviour, so nothing changes until you set something.
 
-They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.json`. Once you've set something, Claude knows that file: ask it for a tweak and it edits the file, then asks you to run `/clawdify reload`.
+They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.json`. Edit that file by hand, then run `/clawdify reload`.
 
 ## Settings
 
@@ -48,7 +48,6 @@ They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.js
 | prompt | `footer` (your own row under the prompt), `footerColor`, `hint`, `hintTail`, `modeLabel`, `backgroundHint` (`none` hides it) |
 | banner | `banner`, `bannerColor`, `bannerBorder`, `bannerAlign`, `mascot` (`still` or `animated` Clawd, or a stock loop), `mascotColor` |
 | transcript | `userPrefix`, `userColor`, `replyRewrites`, `expandToolGroups`, `hideNotices` |
-| persona | `persona` (added to Claude's system prompt) |
 
 - Lists are comma-separated: `Clawing, Scuttling, Pinching`.
 - Stock Clawd loops for `mascot`: `scuttle`, `hop`, `wave`, `cheer`, `think`, `snooze`, `peek`, `idle`. The loop plays while Claude works; idle, Clawd blinks and glances about.
@@ -62,7 +61,6 @@ They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.js
 ## Notes
 
 - `/clawdify <anything>` makes one small Sonnet call on your account. Its answer is filtered to known settings before anything is saved.
-- `persona` changes what Claude is told, not just how things look.
 - Claude Code's own startup header (the logo with version, model, plan and folder) stays. Mods can't draw over it yet; `hideNotices` only hides the dim lines under it.
 
 ## Develop

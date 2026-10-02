@@ -1,7 +1,7 @@
 {
   "name": "clawdify",
-  "version": "0.6.0",
-  "description": "Restyle Claude Code from /clawdify: spinner, turn footer, prompt hint, banner, status line, transcript rows, persona and presets, or just describe what you want.",
+  "version": "0.7.0",
+  "description": "Restyle Claude Code from /clawdify: spinner, turn footer, prompt hint, banner, status line, transcript rows and presets, or just describe what you want.",
   "author": { "name": "viik2k", "url": "https://github.com/viik2k" },
   "homepage": "https://github.com/viik2k/clawdify",
   "repository": "https://github.com/viik2k/clawdify",

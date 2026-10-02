@@ -44,9 +44,6 @@ const USAGE = [
 
 type $ = EngineInterface
 
-// ponytail: the engine names no path for $.store; this is where it keeps one on this build.
-const SETTINGS_NOTE = 'The user restyles Claude Code with the clawdify mod. Its saved settings are the "settings" object in ~/.claude/plugins/store/clawdify_*.json (the most recently modified, if several), and presets the user saved are its "presets" object (name to settings). To change them on request, edit that file (keys and values as /clawdify help lists them, all strings), then tell the user to run /clawdify reload.'
-
 // The store is the truth; $.state is this session's copy. A /clear starts a new session with no
 // session.start, so the copy is empty until ensure() refills it, and readers fall back to the store meanwhile.
 const stored = async ($: $) => ({ ...DEFAULTS, ...clean(await $.store.get('settings')) })
@@ -232,7 +229,7 @@ export const register: Register = on => {
     await update($, context, () => ({ cwd, model, now: 0, ...NO_USAGE }))
     await $.command.register({
       name: 'clawdify',
-      description: 'Customise Claude Code: spinner, footer, hint, banner, status, transcript, persona',
+      description: 'Customise Claude Code: spinner, footer, hint, banner, status, transcript',
       argumentHint: '[what you want | get | set <key> <value> | preset <name> | save <name> | delete <name> | reset [key] | export | import <json> | reload]',
     })
     const tick = async () => {
@@ -503,16 +500,5 @@ export const register: Register = on => {
     if ((await current($)).hideNotices !== 'on') return next(e)
     const { Box } = $.ui.resolve(e)
     return <Box display="none" />
-  })
-
-  on('prompt.compose', async ($, e, next) => {
-    const result = await next(e)
-    const s = await current($)
-    const persona = s.persona.trim()
-    const sections = [
-      ...(persona ? [{ id: 'clawdify:persona', text: persona, scope: 'session' as const }] : []),
-      ...(Object.keys(changed(s)).length ? [{ id: 'clawdify:settings', text: SETTINGS_NOTE, scope: 'session' as const }] : []),
-    ]
-    return sections.length ? { ...result, sections: [...result.sections, ...sections] } : result
   })
 }

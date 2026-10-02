@@ -24,7 +24,6 @@ export const DEFAULTS: ClawdifySettings = {
   bannerColor: '',
   bannerBorder: '',
   bannerAlign: '',
-  bannerAlign: '',
   mascot: '',
   mascotColor: '',
   userPrefix: '',
@@ -32,10 +31,9 @@ export const DEFAULTS: ClawdifySettings = {
   replyRewrites: '',
   expandToolGroups: '',
   hideNotices: '',
-  persona: '',
 }
 
-export const TABS = ['spinner', 'turn', 'prompt', 'banner', 'transcript', 'persona', 'presets'] as const
+export const TABS = ['spinner', 'turn', 'prompt', 'banner', 'transcript', 'presets'] as const
 export type Tab = (typeof TABS)[number]
 
 type Field = { key: Key; tab: Tab; label: string; hint: string; options?: readonly string[] }
@@ -69,11 +67,10 @@ export const FIELDS: readonly Field[] = [
   { key: 'replyRewrites', tab: 'transcript', label: 'Reply rewrites', hint: 'you=>ye; /\\bhello\\b/gi=>ahoy' },
   { key: 'expandToolGroups', tab: 'transcript', label: 'Expand tool groups', hint: '', options: ON_OFF },
   { key: 'hideNotices', tab: 'transcript', label: 'Hide startup notices', hint: '', options: ON_OFF },
-  { key: 'persona', tab: 'persona', label: 'Persona', hint: 'Answer like a pirate.' },
 ]
 
 // A friend's preset: its mascot, one colour everywhere, and theme leftovers from other presets cleared.
-const friend = (mascot: string, colour: string, p: Partial<ClawdifySettings> & { persona: string }): Partial<ClawdifySettings> => ({
+const friend = (mascot: string, colour: string, p: Partial<ClawdifySettings>): Partial<ClawdifySettings> => ({
   spinnerSuffix: '',
   replyRewrites: '',
   userPrefix: '',
@@ -86,7 +83,6 @@ const friend = (mascot: string, colour: string, p: Partial<ClawdifySettings> & {
   footerColor: colour,
   userColor: colour,
   ...p,
-  persona: `${p.persona} Keep code, commands and technical details exact.`,
 })
 
 export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
@@ -112,7 +108,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     footerColor: '#d77757',
     userPrefix: '❯',
     userColor: '#d97757',
-    persona: 'Warm, friendly and a touch cheeky, with light Australian flavour. Keep code, commands and technical details exact.',
   },
   pirate: {
     spinnerVerbs: 'Plundering, Swashbuckling, Hoisting, Parleying',
@@ -120,7 +115,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     doneTemplate: '⚓ {word} for {time}',
     banner: '🏴‍☠️ Cap\'n {model} sails {cwd}',
     replyRewrites: '/\\byou\\b/gi=>ye; /\\bmy\\b/gi=>me',
-    persona: 'Speak like a pirate, but keep code and commands exact.',
   },
   hacker: {
     spinnerThinking: 'Decrypting, Compiling, Brute-forcing',
@@ -142,7 +136,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     doneColor: 'gray',
     hint: 'one thing at a time',
     hideNotices: 'on',
-    persona: 'Be calm and brief. Prefer the smallest change.',
   },
   minimal: {
     spinnerSuffix: '',
@@ -166,7 +159,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🐌 {model} is on its way to {cwd}… eventually',
     bannerBorder: 'round',
     userPrefix: '@',
-    persona: 'Unhurried and deliberate, with a dash of French flair. Takes careful small steps and never rushes to a conclusion.',
   }),
   bat: friend('bat', '#8b5cf6', {
     spinnerVerbs: 'Echolocating, Hanging around, Flitting, Swooping',
@@ -181,7 +173,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🦇 {model} haunting {cwd} at {time}',
     bannerBorder: 'double',
     userPrefix: '^v^',
-    persona: 'A nocturnal debugger who hunts bugs by listening closely to what the code echoes back. Gothic flourishes welcome, briefly.',
   }),
   spider: friend('spider', '#b0aea5', {
     spinnerVerbs: 'Spinning, Weaving, Threading, Dangling',
@@ -196,7 +187,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🕷 {model} weaving through {cwd}',
     bannerBorder: 'single',
     userPrefix: '╲╱',
-    persona: 'Thinks in webs: always notes how a change connects to the rest of the codebase, callers and dependents included.',
   }),
   bunny: friend('bunny', '#f2b8c6', {
     spinnerVerbs: 'Hopping, Bounding, Binkying, Nibbling',
@@ -210,7 +200,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'hop mode',
     banner: '🐇 {model} hopping round {cwd}',
     bannerBorder: 'round',
-    persona: 'Bouncy and upbeat, but knows when a rabbit hole is a waste of time and says so.',
   }),
   dog: friend('dog', '#c68642', {
     spinnerVerbs: 'Fetching, Sniffing, Wagging, Being a good boy',
@@ -225,7 +214,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🐕 {model} guarding {cwd}',
     bannerBorder: 'round',
     userPrefix: '🐾',
-    persona: 'Loyal and enthusiastic like a good dog: eager to help, delighted to bring back results, and honest when it couldn\'t find the ball.',
   }),
   penguin: friend('penguin', '#6a9bcc', {
     spinnerVerbs: 'Waddling, Sliding, Huddling, Tobogganing',
@@ -240,7 +228,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🐧 {model} on the ice at {cwd}',
     bannerBorder: 'bold',
     userPrefix: '$',
-    persona: 'Impeccably formal and polite, like a penguin in a tuxedo, and cool under pressure. Fond of a good Linux one-liner.',
   }),
   snake: friend('snake', '#788c5d', {
     spinnerVerbs: 'Slithering, Coiling, Shedding, Hissing',
@@ -256,7 +243,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '🐍 {model} coiled around {cwd}',
     userPrefix: '>>>',
     replyRewrites: '/\\bYes\\b/g=>Yesss',
-    persona: 'Sly and precise, and lives by the Zen of Python: explicit over implicit, simple over complex, readability counts.',
   }),
   jellyfish: friend('jellyfish', '#7fdbda', {
     spinnerVerbs: 'Drifting, Pulsing, Glowing, Floating',
@@ -271,7 +257,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'bioluminescent',
     banner: '≋ {model} drifting through {cwd} ≋',
     bannerAlign: 'center',
-    persona: 'Serene and fluid. No ego, goes with the flow, and lights up when it finds something interesting.',
   }),
   duck: friend('duck', '#f5c542', {
     spinnerVerbs: 'Paddling, Quacking, Rubber-ducking, Waddling',
@@ -285,7 +270,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'rubber duck',
     banner: '🦆 {model} · rubber duck on duty · {cwd}',
     bannerBorder: 'round',
-    persona: 'A rubber duck that talks back: asks the one clarifying question that cracks the bug, and gets the user to explain their reasoning.',
   }),
   turtle: friend('turtle', '#5f9e6e', {
     spinnerVerbs: 'Plodding, Persevering, Basking, Shelling out',
@@ -299,7 +283,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'steady',
     banner: '🐢 {model} plodding through {cwd}',
     bannerBorder: 'bold',
-    persona: 'Steady and patient, like the tortoise that beat the hare: thorough, tested, and no shortcuts that bite later.',
   }),
   hourglass: friend('hourglass', '#d4a85a', {
     spinnerVerbs: 'Waiting, Sifting, Trickling, Biding time',
@@ -314,7 +297,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'sands of time',
     banner: '⏳ {model} · {date} {time} · {cwd}',
     bannerBorder: 'classic',
-    persona: 'Mindful of time: says up front what will be slow, and never wastes a turn.',
   }),
   plant: friend('plant', '#7cb342', {
     spinnerVerbs: 'Growing, Photosynthesising, Sprouting, Rooting',
@@ -328,7 +310,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'green thumb',
     banner: '🌱 {model} tending the {cwd} garden',
     bannerBorder: 'round',
-    persona: 'A patient gardener: grows code a little at a time, happily prunes dead code, and leaves the codebase healthier than it found it.',
   }),
   campfire: friend('campfire', '#ff7a33', {
     spinnerVerbs: 'Crackling, Kindling, Toasting, Smouldering',
@@ -342,7 +323,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'cosy',
     banner: '🔥 {model} round the fire at {cwd}',
     bannerBorder: 'round',
-    persona: 'A warm storyteller round the campfire: explanations have a little narrative to them, but stay short and accurate.',
   }),
   rain: friend('rain', '#7aa2c8', {
     spinnerVerbs: 'Drizzling, Pouring, Pattering, Precipitating',
@@ -356,7 +336,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     hintTail: 'bring a brolly',
     modeLabel: 'forecast',
     banner: '☁ {model} over {cwd} · {time}',
-    persona: 'A weather presenter: gives the outlook first (what will change, any chance of breakage), then the details.',
   }),
   moon: friend('moon', '#f0eee6', {
     spinnerVerbs: 'Waxing, Waning, Orbiting, Moonlighting',
@@ -371,7 +350,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '☾ {model} over {cwd} · {time}',
     bannerBorder: 'round',
     hideNotices: 'on',
-    persona: 'A quiet late-night pair programmer: calm, reflective and low-key, never shouty.',
   }),
   equalizer: friend('equalizer', '#ff4fd8', {
     spinnerVerbs: 'Vibing, Mixing, Dropping the beat, Remixing',
@@ -386,7 +364,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'on air',
     banner: '♫ now playing: {model} · live from {cwd}',
     bannerBorder: 'bold',
-    persona: 'A radio DJ: punchy intros, keeps the energy up, and the tracks (the code) are always clean.',
   }),
   heartbeat: friend('heartbeat', '#ff4d5e', {
     spinnerVerbs: 'Monitoring, Triaging, Stabilising, Diagnosing',
@@ -401,7 +378,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'on call',
     banner: '♥ {model} · ward {cwd} · {time}',
     bannerBorder: 'single',
-    persona: 'An ER doctor for code: triage first (what is broken, how badly), stabilise, then give the diagnosis plainly.',
   }),
   screensaver: friend('screensaver', '#3fd0c9', {
     spinnerVerbs: 'Bouncing, Idling, Drifting, Almost hitting the corner',
@@ -416,7 +392,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: '▣ {model} · {cwd} · {date}',
     bannerBorder: 'classic',
     userPrefix: 'C:\\>',
-    persona: 'Nostalgic for early-2000s computing, and celebrates small wins like the logo finally hitting the corner.',
   }),
   'binary-rain': friend('binary-rain', '#00ff41', {
     spinnerVerbs: 'Decoding, Following the white rabbit, Jacking in, Bending the spoon',
@@ -432,7 +407,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     banner: 'wake up… {model} has you · {cwd}',
     bannerBorder: 'single',
     userPrefix: '>',
-    persona: 'Cryptic but precise, like an operator in the Matrix who sees the code beneath everything.',
   }),
   train: friend('train', '#d0473a', {
     spinnerVerbs: 'Choo-chooing, Chugging, Steaming ahead, Full steam',
@@ -446,7 +420,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     modeLabel: 'express',
     banner: '🚂 {model} express · next stop {cwd}',
     bannerBorder: 'double',
-    persona: 'A cheery train conductor: announces each stop (step) of the plan and keeps things running on schedule.',
   }),
 }
 
@@ -584,7 +557,7 @@ export const brief = (s: ClawdifySettings) => [
   `The mascot is Clawd, Claude Code's own pixel crab, never the 🦀 emoji. mascot draws him above the prompt (animated: blinks idle, scuttles while working; a stock loop name plays that loop while working and glances about while idle: scuttle, hop, wave, cheer, think, snooze, peek, idle; or, only if the user wants something other than Clawd, a friend that plays its loop while working and holds still while idle: ${Object.keys(FRIENDS).join(", ")}), and that is the one place he goes. Only if the user asks for him somewhere specific, {clawd} is a one-row Clawd (animated in spinnerSuffix). Claude's colours are warm: #d77757 orange, #c15f3c rust, #f0eee6 cream.`,
   'footer replaces the row under the prompt (the line with "? for shortcuts"); segments split on " · ", tokens {branch} {context} {ctxbar} {5h} {7d} {cost} plus the template ones. Clawd is never drawn in the footer.',
   'Lists are comma-separated. Colours are names (green, magenta, gray, ...) or #rrggbb. Template tokens: {model} {cwd} {path} {time} {date}; in doneTemplate {word} is the done word and {time} the turn length.',
-  'replyRewrites is display-only find/replace on Claude\'s replies: "a=>b; /re/flags=>c". persona is text added to Claude\'s system prompt.',
+  'replyRewrites is display-only find/replace on Claude\'s replies: "a=>b; /re/flags=>c".',
   `Presets to borrow from: ${JSON.stringify(PRESETS)}`,
   `Current non-default settings: ${JSON.stringify(changed(s))}`,
 ].join('\n')

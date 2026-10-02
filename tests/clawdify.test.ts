@@ -99,7 +99,7 @@ test('commands set, preset, export, import and reset', async ($, on) => {
 
   await command($, 'preset pirate')
   const composed = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] })
-  expect(composed.sections.slice(-2).map(x => x.id)).toEqual(['clawdify:persona', 'clawdify:settings'])
+  expect(composed.sections.map(x => x.id)).toEqual(['intro'])
   await $.ui.render({ surface: 'terminal', component: 'AssistantMessage', requestId: 'r', props: { text: 'Did you see my code?', isFirstOfReply: true } })
   expect(seen.props?.text).toBe('Did ye see me code?')
 
@@ -125,7 +125,7 @@ test('leaves everything alone until something is set', async ($, on) => {
 })
 
 test('saved settings come back at session start, junk dropped', async ($, on) => {
-  const seen = engine(on, { settings: { doneVerbs: 'Clawed', evil: 1, persona: 42 } })
+  const seen = engine(on, { settings: { doneVerbs: 'Clawed', evil: 1, persona: 'Answer like a pirate.' } })
   await start($)
   await $.ui.render({ surface: 'terminal', component: 'TurnDuration', requestId: 'b', props: { word: 'Baked', durationMs: 3000 } })
   expect(seen.props?.word).toBe('Clawed')

@@ -6,7 +6,7 @@
     {
       "name": "clawdify",
       "source": "./",
-      "description": "Restyle Claude Code from /clawdify: spinner, footer, hint, banner, status line, transcript, persona, presets, or describe what you want."
+      "description": "Restyle Claude Code from /clawdify: spinner, footer, hint, banner, status line, transcript, presets, or describe what you want."
     }
   ]
 }

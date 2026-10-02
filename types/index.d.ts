@@ -25,7 +25,6 @@ export type ClawdifySettings = {
   replyRewrites: string
   expandToolGroups: string
   hideNotices: string
-  persona: string
 }
 
 // -1 = not known yet.
