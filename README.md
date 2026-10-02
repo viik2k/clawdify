@@ -29,8 +29,11 @@ Or run it from a clone: `claude --plugin-dir path/to/clawdify`.
 | `/clawdify preset <name>` | Layer a preset on top: `clawd`, `pirate`, `hacker`, `zen`, `minimal` |
 | `/clawdify reset [key]` | Back to Claude Code defaults |
 | `/clawdify export` / `import <json>` | Share settings as JSON |
+| `/clawdify reload` | Pick up edits made to the saved settings file |
 
-Settings persist across sessions. Empty means Claude Code's own behaviour, so nothing changes until you set something.
+Settings persist across sessions and `/clear`. Empty means Claude Code's own behaviour, so nothing changes until you set something.
+
+They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.json`. Once you've set something, Claude knows that file: ask it for a tweak and it edits the file, then asks you to run `/clawdify reload`.
 
 ## Settings
 
@@ -39,11 +42,12 @@ Settings persist across sessions. Empty means Claude Code's own behaviour, so no
 | spinner | `spinnerVerbs`, `spinnerThinking`, `spinnerTools`, `spinnerResponding`, `spinnerSuffix` |
 | turn | `doneVerbs`, `doneTemplate`, `doneColor`, `doneToastSecs` |
 | prompt | `footer` (your own row under the prompt), `footerColor`, `hint`, `hintTail`, `modeLabel`, `backgroundHint` (`none` hides it) |
-| banner | `banner`, `bannerColor`, `bannerBorder`, `bannerAlign`, `mascot` (`still` or `animated` Clawd), `mascotColor` |
+| banner | `banner`, `bannerColor`, `bannerBorder`, `bannerAlign`, `mascot` (`still` or `animated` Clawd, or a stock loop), `mascotColor` |
 | transcript | `userPrefix`, `userColor`, `replyRewrites`, `expandToolGroups`, `hideNotices` |
 | persona | `persona` (added to Claude's system prompt) |
 
 - Lists are comma-separated: `Clawing, Scuttling, Pinching`.
+- Stock Clawd loops for `mascot`: `scuttle`, `hop`, `wave`, `cheer`, `think`, `snooze`, `peek`, `idle`. The loop plays while Claude works; idle, Clawd blinks and glances about.
 - Clawd stays above the prompt (`mascot`). Want him elsewhere? `{clawd}` is a one-row Clawd (▐▛███▜▌), animated in `spinnerSuffix`; the footer never draws him.
 - Templates take `{model}`, `{cwd}`, `{path}`, `{time}`, `{date}`; `doneTemplate` also takes `{word}`, and its `{time}` is the turn's length.
 - `footer` also takes `{branch}`, `{context}`, `{ctxbar}`, `{5h}`, `{7d}`, `{cost}`; split it with ` · ` and percentages turn amber past 60 and rust past 85.

@@ -1,4 +1,5 @@
 import type { ClawdifyContext, ClawdifySettings, ClawdifyUsage } from '../types'
+import { CRABS } from './crabs'
 
 export type Key = keyof ClawdifySettings
 
@@ -60,7 +61,7 @@ export const FIELDS: readonly Field[] = [
   { key: 'bannerColor', tab: 'banner', label: 'Banner colour', hint: 'magenta, #c15f3c' },
   { key: 'bannerBorder', tab: 'banner', label: 'Banner border', hint: '', options: ['', 'round', 'single', 'double', 'bold', 'classic'] },
   { key: 'bannerAlign', tab: 'banner', label: 'Banner align', hint: '', options: ['', 'center', 'right'] },
-  { key: 'mascot', tab: 'banner', label: 'Clawd', hint: '', options: ['', 'still', 'animated'] },
+  { key: 'mascot', tab: 'banner', label: 'Clawd', hint: '', options: ['', 'still', 'animated', ...Object.keys(CRABS)] },
   { key: 'mascotColor', tab: 'banner', label: 'Clawd colour', hint: '#d77757 (Claude orange)' },
   { key: 'userPrefix', tab: 'transcript', label: 'Your prompt prefix', hint: '❯' },
   { key: 'userColor', tab: 'transcript', label: 'Your prompt colour', hint: 'cyan' },
@@ -257,7 +258,7 @@ export const brief = (s: ClawdifySettings) => [
   'Reply with ONE JSON object and nothing else: setting keys to string values, only the keys to change. "" restores Claude Code\'s default. Reply {} if nothing fits.',
   'Settings:',
   ...FIELDS.map(f => `- ${f.key} (${f.tab}): ${f.label}${f.options ? `; one of ${f.options.map(o => JSON.stringify(o)).join(', ')}` : `; e.g. ${f.hint}`}`),
-  "The mascot is Clawd, Claude Code's own pixel crab, never the 🦀 emoji. mascot draws him above the prompt (animated: blinks idle, scuttles while working), and that is the one place he goes. Only if the user asks for him somewhere specific, {clawd} is a one-row Clawd (animated in spinnerSuffix). Claude's colours are warm: #d77757 orange, #c15f3c rust, #f0eee6 cream.",
+  "The mascot is Clawd, Claude Code's own pixel crab, never the 🦀 emoji. mascot draws him above the prompt (animated: blinks idle, scuttles while working; a stock loop name plays that loop while working and glances about while idle: scuttle, hop, wave, cheer, think, snooze, peek, idle), and that is the one place he goes. Only if the user asks for him somewhere specific, {clawd} is a one-row Clawd (animated in spinnerSuffix). Claude's colours are warm: #d77757 orange, #c15f3c rust, #f0eee6 cream.",
   'footer replaces the row under the prompt (the line with "? for shortcuts"); segments split on " · ", tokens {branch} {context} {ctxbar} {5h} {7d} {cost} plus the template ones. Clawd is never drawn in the footer.',
   'Lists are comma-separated. Colours are names (green, magenta, gray, ...) or #rrggbb. Template tokens: {model} {cwd} {path} {time} {date}; in doneTemplate {word} is the done word and {time} the turn length.',
   'replyRewrites is display-only find/replace on Claude\'s replies: "a=>b; /re/flags=>c". persona is text added to Claude\'s system prompt.',

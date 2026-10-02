@@ -6,9 +6,15 @@ import { NO_USAGE, fill, rewrite } from '../hooks/settings'
 
 // The test's own hooks stand for the engine: the last props the plugin passed down, and stubs for the rest.
 const engine = (on: On, stored?: Record<string, unknown>) => {
-  mock.store(on, stored)
+  // The saved settings file, open to the test so it can edit it as Claude would.
+  const disk: Record<string, unknown> = { ...stored }
+  on('store.get', (_, e) => ({ value: disk[e.key] }))
+  on('store.set', (_, e) => {
+    disk[e.key] = JSON.parse(JSON.stringify(e.value))
+    return { value: undefined }
+  })
   const clock = mock.clock(on)
-  const seen: { props?: Record<string, unknown>; clock: typeof clock; statuses: (string | undefined)[] } = { clock, statuses: [] }
+  const seen: { props?: Record<string, unknown>; clock: typeof clock; statuses: (string | undefined)[]; disk: typeof disk } = { clock, statuses: [], disk }
   on('ui.render', ($, e) => {
     seen.props = e.props as Record<string, unknown>
     const { Text } = $.ui.resolve(e)
@@ -89,7 +95,7 @@ test('commands set, preset, export, import and reset', async ($, on) => {
 
   await command($, 'preset pirate')
   const composed = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] })
-  expect(composed.sections.at(-1)?.id).toBe('clawdify:persona')
+  expect(composed.sections.slice(-2).map(x => x.id)).toEqual(['clawdify:persona', 'clawdify:settings'])
   await $.ui.render({ surface: 'terminal', component: 'AssistantMessage', requestId: 'r', props: { text: 'Did you see my code?', isFirstOfReply: true } })
   expect(seen.props?.text).toBe('Did ye see me code?')
 
@@ -197,4 +203,37 @@ test('an old status line moves into the footer, Clawd stripped, and the status e
   expect(footer).not.toContain('▐')
   expect(footer).not.toContain('🦀')
   expect(footer).not.toContain('{clawd}')
+})
+
+test('a stock loop plays at its own pace while working and glances about while idle', async ($, on) => {
+  const seen = engine(on)
+  await start($)
+  await command($, 'set mascot hop')
+  const band = async (isWorking: boolean) => JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: { ...BAND, isWorking } }))
+
+  expect(await band(false)).toContain('▐▛███▜▌')
+  const poses = new Set<string>()
+  for (let i = 0; i < 8; i++) {
+    await seen.clock.advance(120)
+    poses.add(await band(true))
+  }
+  expect(poses.size).toBeGreaterThan(2)
+  expect([...poses].join()).toContain('▙███▟')
+})
+
+test('settings survive a /clear, and edits to the saved file land on /clawdify reload', async ($, on) => {
+  const seen = engine(on, { settings: { banner: 'saved banner', doneVerbs: 'Clawed' } })
+  // After a /clear no session.start fires, so this session's copy is empty: draws fall back to the store.
+  expect(JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: BAND }))).toContain('saved banner')
+
+  await start($)
+  // Claude edits the file behind clawdify's back; the session keeps its copy until reload.
+  seen.disk.settings = { banner: 'edited banner', doneVerbs: 'Clawed' }
+  expect((await command($, 'reload')).text).toContain('edited banner')
+  expect(JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: BAND }))).toContain('edited banner')
+
+  // A change lands on what is saved, so an unreloaded file edit is kept too.
+  seen.disk.settings = { banner: 'edited banner', doneVerbs: 'Snipped' }
+  await command($, 'set hint she will be right')
+  expect(seen.disk.settings).toEqual({ banner: 'edited banner', doneVerbs: 'Snipped', hint: 'she will be right' })
 })

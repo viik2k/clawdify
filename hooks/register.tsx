@@ -4,6 +4,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { ClawdifySettings } from '../types'
 import { DEFAULTS, FIELDS, PRESETS, TABS, NO_USAGE, brief, unclawd, changed, clawd, clean, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
 import type { Key, Tab } from './settings'
+import { CRABS, crabFrame } from './crabs'
 
 const PANE = 'clawdify'
 const SETTINGS = { plugin: 'clawdify', key: 'settings' } as const
@@ -30,6 +31,7 @@ const USAGE = [
   '/clawdify reset [key]        back to Claude Code defaults',
   '/clawdify export             copy your settings as JSON',
   '/clawdify import <json>      load settings from JSON',
+  '/clawdify reload             pick up edits made to the saved settings file',
   '/clawdify <anything else>    say what you want ("make it feel like a submarine"); Claude sets it',
   '',
   'Keys: ' + FIELDS.map(f => f.key).join(', '),
@@ -38,7 +40,32 @@ const USAGE = [
 
 type $ = EngineInterface
 
-const current = async ($: $) => (await $.state.get(SETTINGS)).value ?? DEFAULTS
+// ponytail: the engine names no path for $.store; this is where it keeps one on this build.
+const SETTINGS_NOTE = 'The user restyles Claude Code with the clawdify mod. Its saved settings are the "settings" object in ~/.claude/plugins/store/clawdify_*.json (the most recently modified, if several). To change them on request, edit that file (keys and values as /clawdify help lists them, all strings), then tell the user to run /clawdify reload.'
+
+// The store is the truth; $.state is this session's copy. A /clear starts a new session with no
+// session.start, so the copy is empty until ensure() refills it, and readers fall back to the store meanwhile.
+const stored = async ($: $) => ({ ...DEFAULTS, ...clean(await $.store.get('settings')) })
+
+const current = async ($: $) => {
+  const { value, version } = await $.state.get(SETTINGS)
+  return version && value ? value : stored($)
+}
+
+const load = async ($: $) => {
+  const s = await stored($)
+  return update($, settings, () => s)
+}
+
+let cwd = ''
+
+const ensure = async ($: $) => {
+  if (!(await $.state.get(SETTINGS)).version) await load($)
+  if (!(await $.state.get(CONTEXT)).version) {
+    const model = await $.session.model().catch(() => '')
+    await update($, context, () => ({ cwd, model, now: 0, ...NO_USAGE }))
+  }
+}
 
 // Context fill, rate limits and cost as the status line has them, and the branch from .git/HEAD.
 const refreshUsage = async ($: $) => {
@@ -55,8 +82,10 @@ const refreshUsage = async ($: $) => {
 }
 
 const save = async ($: $, change: (old: ClawdifySettings) => ClawdifySettings) => {
-  const next = await update($, settings, change)
+  // Change what is saved, not this session's copy, so a stale copy or an edit to the file is never lost.
+  const next = change(await stored($))
   await $.store.set('settings', changed(next))
+  await update($, settings, () => next)
   return next
 }
 
@@ -110,6 +139,9 @@ const run = async ($: $, args: string): Promise<string> => {
       await save($, () => ({ ...DEFAULTS, ...loaded }))
       return `Imported ${Object.keys(loaded).length} settings.`
     }
+    case 'reload':
+      return `Reloaded.
+${describe(await load($))}`
     case 'help':
       return USAGE
     default:
@@ -140,14 +172,14 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     // ponytail: clears the status entry clawdify drew up to 0.4; drop this once nobody upgrades from there.
     $.ui.status(undefined)
-    const saved = clean(await $.store.get('settings'))
-    await update($, settings, () => ({ ...DEFAULTS, ...saved }))
+    cwd = e.cwd
+    await load($)
     const model = await $.session.model().catch(() => '')
-    await update($, context, () => ({ cwd: e.cwd, model, now: 0, ...NO_USAGE }))
+    await update($, context, () => ({ cwd, model, now: 0, ...NO_USAGE }))
     await $.command.register({
       name: 'clawdify',
       description: 'Customise Claude Code: spinner, footer, hint, banner, status, transcript, persona',
-      argumentHint: '[what you want | get | set <key> <value> | preset <name> | reset [key] | export | import <json>]',
+      argumentHint: '[what you want | get | set <key> <value> | preset <name> | reset [key] | export | import <json> | reload]',
     })
     const tick = async () => {
       const now = await $.clock.now()
@@ -158,17 +190,27 @@ export const register: Register = on => {
     }
     await tick()
     await refreshUsage($)
-    $.clock.every(15000, () => void refreshUsage($))
+    $.clock.every(15000, () => void ensure($).then(() => refreshUsage($)))
     $.clock.every(15000, () => void tick())
-    // ponytail: one 250ms clock drives every Clawd, and only while one is animated; it redraws the band and spinner 4x a second.
-    $.clock.every(250, async () => {
+    // ponytail: one 50ms clock drives every Clawd, and only while one is animated. frame holds elapsed ms,
+    // written only when some Clawd's picture changes: 4x a second for the classic ones, at a stock loop's own pace.
+    let ms = 0
+    $.clock.every(50, async () => {
       const s = await current($)
-      if (s.mascot === 'animated' || s.spinnerSuffix.includes('{clawd}')) await update($, frame, n => n + 1)
+      const crab = CRABS[s.mascot]
+      const steps = [
+        ...(s.mascot === 'animated' || s.spinnerSuffix.includes('{clawd}') ? [250] : []),
+        ...(crab ? [crab.ms, CRABS.idle!.ms] : []),
+      ]
+      if (!steps.length) return
+      ms += 50
+      if (steps.some(step => ms % step < 50)) await update($, frame, () => ms)
     })
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
+    await ensure($)
     const model = await $.session.model().catch(() => '')
     if (model) await update($, context, ctx => (ctx.model === model ? ctx : { ...ctx, model }))
     return next(e)
@@ -183,13 +225,14 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'clawdify' }, async ($, e) => {
+    await ensure($)
     if (e.args.trim()) return { text: await run($, e.args) }
     await $.ui.open({ id: PANE, title: 'clawdify', focus: true })
     return { text: 'clawdify open. Enter saves a field; an empty field restores the default. /clawdify help for commands.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const s = await read($, settings)
+    const s = await current($)
     const active = (await read($, tab)) as Tab
 
     if (e.surface === 'mobile' || e.surface === 'vscode') {
@@ -267,17 +310,17 @@ export const register: Register = on => {
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
     // ponytail: desktop's word describes the current step, so leave it alone there.
     if (e.surface !== 'terminal') return next(e)
-    const s = await read($, settings)
+    const s = await current($)
     const field = SPINNER_FIELD[e.props.mode]
     const verbs = list(field ? s[field] : '').length ? list(field ? s[field] : '') : list(s.spinnerVerbs)
     const props = { ...e.props }
     if (verbs.length) props.word = pick(verbs, e.props.word)
-    if (s.spinnerSuffix) props.suffix = s.spinnerSuffix.includes('{clawd}') ? s.spinnerSuffix.replaceAll('{clawd}', tinyClawd(await read($, frame))) : s.spinnerSuffix
+    if (s.spinnerSuffix) props.suffix = s.spinnerSuffix.includes('{clawd}') ? s.spinnerSuffix.replaceAll('{clawd}', tinyClawd(Math.floor((await read($, frame)) / 250))) : s.spinnerSuffix
     return next({ ...e, props })
   })
 
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    const s = await read($, settings)
+    const s = await current($)
     const verbs = list(s.doneVerbs)
     const word = verbs.length ? pick(verbs, e.props.word + e.requestId) : e.props.word
     if (!s.doneTemplate.trim()) return verbs.length ? next({ ...e, props: { ...e.props, word } }) : next(e)
@@ -288,7 +331,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    const s = await read($, settings)
+    const s = await current($)
     if (unclawd(s.footer)) {
       const ctx = await read($, context)
       const { Box, Text } = $.ui.resolve(e)
@@ -313,23 +356,25 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
-    const label = (await read($, settings)).modeLabel.trim()
+    const label = (await current($)).modeLabel.trim()
     return label ? next({ ...e, props: { modes: [...e.props.modes, label] } }) : next(e)
   })
 
   on('ui.render', { component: 'ToolProgress' }, async ($, e, next) => {
-    const hint = (await read($, settings)).backgroundHint.trim()
+    const hint = (await current($)).backgroundHint.trim()
     if (!hint) return next(e)
     return next({ ...e, props: { ...e.props, hint: hint === 'none' ? '' : hint } })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const s = await read($, settings)
+    const s = await current($)
     if ((!s.banner.trim() && !s.mascot) || e.props.hasSurvey) return next(e)
     const ctx = await read($, context)
     const { Box, Text } = $.ui.resolve(e)
-    const animated = s.mascot === 'animated'
-    const n = animated ? await read($, frame) : 0
+    const crab = CRABS[s.mascot]
+    const animated = s.mascot === 'animated' || !!crab
+    const ms = animated ? await read($, frame) : 0
+    const n = Math.floor(ms / 250)
     const working = animated && e.props.isWorking
     const justify = s.bannerAlign === 'center' ? 'center' : s.bannerAlign === 'right' ? 'flex-end' : 'flex-start'
     const text = fill(s.banner, ctx)
@@ -344,8 +389,12 @@ export const register: Register = on => {
       >
         {s.mascot
           ? (
-              <Box flexDirection="column" width={animated ? 15 : 9} paddingLeft={working ? scuttle(n, 6) : 0}>
-                {clawd(n, working).map((row, i) => <Text key={`clawd-${i}`} color={s.mascotColor || '#d77757'}>{row}</Text>)}
+              <Box
+                flexDirection="column"
+                width={crab ? crab.frames[0]?.[0]?.length ?? 9 : animated ? 15 : 9}
+                paddingLeft={working && !crab ? scuttle(n, 6) : 0}
+              >
+                {(crab ? crabFrame(working ? crab : CRABS.idle!, ms) : clawd(n, working)).map((row, i) => <Text key={`clawd-${i}`} color={s.mascotColor || '#d77757'}>{row}</Text>)}
               </Box>
             )
           : null}
@@ -355,7 +404,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    const s = await read($, settings)
+    const s = await current($)
     if (e.props.origin.kind !== 'composer' || (!s.userPrefix && !s.userColor)) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const color = s.userColor || undefined
@@ -368,28 +417,29 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    const rules = (await read($, settings)).replyRewrites
+    const rules = (await current($)).replyRewrites
     return rules.trim() ? next({ ...e, props: { ...e.props, text: rewrite(e.props.text, rules) } }) : next(e)
   })
 
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
-    const expand = (await read($, settings)).expandToolGroups === 'on'
+    const expand = (await current($)).expandToolGroups === 'on'
     return expand && !e.props.isExpanded ? next({ ...e, props: { ...e.props, isExpanded: true } }) : next(e)
   })
 
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
-    if ((await read($, settings)).hideNotices !== 'on') return next(e)
+    if ((await current($)).hideNotices !== 'on') return next(e)
     const { Box } = $.ui.resolve(e)
     return <Box display="none" />
   })
 
   on('prompt.compose', async ($, e, next) => {
     const result = await next(e)
-    const persona = (await current($)).persona.trim()
-    if (!persona) return result
-    return {
-      ...result,
-      sections: [...result.sections, { id: 'clawdify:persona', text: persona, scope: 'session' as const }],
-    }
+    const s = await current($)
+    const persona = s.persona.trim()
+    const sections = [
+      ...(persona ? [{ id: 'clawdify:persona', text: persona, scope: 'session' as const }] : []),
+      ...(Object.keys(changed(s)).length ? [{ id: 'clawdify:settings', text: SETTINGS_NOTE, scope: 'session' as const }] : []),
+    ]
+    return sections.length ? { ...result, sections: [...result.sections, ...sections] } : result
   })
 }
