@@ -60,6 +60,7 @@ They're saved as the `settings` object in `~/.claude/plugins/store/clawdify_*.js
 
 - `/clawdify <anything>` makes one small Sonnet call on your account. Its answer is filtered to known settings before anything is saved.
 - `persona` changes what Claude is told, not just how things look.
+- Claude Code's own startup header (the logo with version, model, plan and folder) stays. Mods can't draw over it yet; `hideNotices` only hides the dim lines under it.
 
 ## Develop
 
