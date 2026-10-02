@@ -11,11 +11,15 @@ export type ClawdifySettings = {
   hint: string
   hintTail: string
   modeLabel: string
+  footer: string
+  footerColor: string
   backgroundHint: string
   banner: string
   bannerColor: string
   bannerBorder: string
   bannerAlign: string
+  mascot: string
+  mascotColor: string
   statusText: string
   userPrefix: string
   userColor: string
@@ -25,10 +29,12 @@ export type ClawdifySettings = {
   persona: string
 }
 
-export type ClawdifyContext = { cwd: string; model: string; now: number }
+// -1 = not known yet.
+export type ClawdifyUsage = { branch: string; context: number; limit5h: number; limit7d: number; cost: number }
+export type ClawdifyContext = ClawdifyUsage & { cwd: string; model: string; now: number }
 
 declare module 'claude-code' {
   interface PluginState {
-    clawdify: { settings: ClawdifySettings; tab: string; context: ClawdifyContext }
+    clawdify: { settings: ClawdifySettings; tab: string; context: ClawdifyContext; frame: number }
   }
 }

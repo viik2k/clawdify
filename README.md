@@ -26,7 +26,7 @@ Or run it from a clone: `claude --plugin-dir path/to/clawdify`.
 | `/clawdify <anything>` | Describe what you want; Claude picks the settings |
 | `/clawdify get` | List what you changed |
 | `/clawdify set <key> <value>` | Change one setting (empty value = default) |
-| `/clawdify preset <name>` | Layer a preset on top: `crab`, `pirate`, `hacker`, `zen`, `minimal` |
+| `/clawdify preset <name>` | Layer a preset on top: `clawd`, `pirate`, `hacker`, `zen`, `minimal` |
 | `/clawdify reset [key]` | Back to Claude Code defaults |
 | `/clawdify export` / `import <json>` | Share settings as JSON |
 
@@ -38,13 +38,15 @@ Settings persist across sessions. Empty means Claude Code's own behaviour, so no
 |---|---|
 | spinner | `spinnerVerbs`, `spinnerThinking`, `spinnerTools`, `spinnerResponding`, `spinnerSuffix` |
 | turn | `doneVerbs`, `doneTemplate`, `doneColor`, `doneToastSecs` |
-| prompt | `hint`, `hintTail`, `modeLabel`, `backgroundHint` (`none` hides it) |
-| banner | `banner`, `bannerColor`, `bannerBorder`, `bannerAlign`, `statusText` |
+| prompt | `footer` (your own row under the prompt), `footerColor`, `hint`, `hintTail`, `modeLabel`, `backgroundHint` (`none` hides it) |
+| banner | `banner`, `bannerColor`, `bannerBorder`, `bannerAlign`, `mascot` (`still` or `animated` Clawd), `mascotColor`, `statusText` |
 | transcript | `userPrefix`, `userColor`, `replyRewrites`, `expandToolGroups`, `hideNotices` |
 | persona | `persona` (added to Claude's system prompt) |
 
 - Lists are comma-separated: `Clawing, Scuttling, Pinching`.
+- `{clawd}` anywhere is a one-row Clawd (▐▛███▜▌); in `spinnerSuffix` he scuttles.
 - Templates take `{model}`, `{cwd}`, `{path}`, `{time}`, `{date}`; `doneTemplate` also takes `{word}`, and its `{time}` is the turn's length.
+- `footer` also takes `{branch}`, `{context}`, `{ctxbar}`, `{5h}`, `{7d}`, `{cost}`; split it with ` · ` and percentages turn amber past 60 and rust past 85.
 - Colours are names (`green`, `magenta`) or `#rrggbb`. An unknown colour makes Claude Code draw that element normally.
 - `replyRewrites` is display-only find/replace on Claude's replies: `you=>ye; /\bhello\b/gi=>ahoy`.
 

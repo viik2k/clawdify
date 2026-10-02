@@ -2,13 +2,13 @@ import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { fill, rewrite } from '../hooks/settings'
+import { NO_USAGE, fill, rewrite } from '../hooks/settings'
 
 // The test's own hooks stand for the engine: the last props the plugin passed down, and stubs for the rest.
 const engine = (on: On, stored?: Record<string, unknown>) => {
   mock.store(on, stored)
-  mock.clock(on)
-  const seen: { props?: Record<string, unknown> } = {}
+  const clock = mock.clock(on)
+  const seen: { props?: Record<string, unknown>; clock: typeof clock } = { clock }
   on('ui.render', ($, e) => {
     seen.props = e.props as Record<string, unknown>
     const { Text } = $.ui.resolve(e)
@@ -21,6 +21,8 @@ const engine = (on: On, stored?: Record<string, unknown>) => {
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' as const }] }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('ui.copy', () => ({ value: { isCopied: true as const } }))
+  on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200000, percent: 91 }, rateLimits: [{ kind: 'five_hour', percentUsed: 12 }], cost: { usd: 0.5 } } }))
+  on('fs.read', () => ({ value: 'ref: refs/heads/main\n' }))
   return seen
 }
 
@@ -118,7 +120,7 @@ test('saved settings come back at session start, junk dropped', async ($, on) =>
 })
 
 test('templates and rewrites', async () => {
-  const ctx = { cwd: 'C:\\Repos\\clawdify', model: 'opus', now: new Date(2026, 9, 2, 9, 5).getTime() }
+  const ctx = { cwd: 'C:\\Repos\\clawdify', model: 'opus', now: new Date(2026, 9, 2, 9, 5).getTime(), ...NO_USAGE }
   expect(fill('{model} {cwd} {time} {date} {nope}', ctx)).toBe('opus clawdify 09:05 2026-10-02 {nope}')
   expect(rewrite('hello you', 'hello=>ahoy; /\\byou\\b/g=>ye')).toBe('ahoy ye')
   expect(rewrite('keep', '/(/=>x')).toBe('keep')
@@ -146,4 +148,39 @@ test('/clawdify <request> asks the model and applies only known keys', async ($,
   expect((await command($, 'do something weird')).text).toContain("Couldn't read")
   text = '{}'
   expect((await command($, 'do nothing')).text).toContain('Nothing to change')
+})
+
+test('preset clawd draws Clawd above the prompt and he scuttles while working', async ($, on) => {
+  const seen = engine(on)
+  await start($)
+  await command($, 'preset clawd')
+
+  const idle = JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: BAND }))
+  expect(idle).toContain('▐▛███▜▌')
+  expect(idle).toContain("G'day! claude-opus-5-5")
+
+  const poses = new Set<string>()
+  for (let i = 0; i < 4; i++) {
+    await seen.clock.advance(250)
+    poses.add(JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'AbovePrompt', requestId: 'c', props: { ...BAND, isWorking: true } })))
+  }
+  expect(poses.size).toBeGreaterThan(1)
+
+  await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'a', props: SPINNER })
+  expect(String(seen.props?.suffix)).toContain('▐▛███▜▌')
+  expect(String(seen.props?.word)).not.toBe('Sauteing')
+})
+
+test('the clawd footer replaces the hint row with live usage and no Clawd', async ($, on) => {
+  engine(on)
+  await start($)
+  await command($, 'preset clawd')
+  const footer = JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'PromptHint', requestId: 'h', props: { isDraft: false, isWorking: true, hint: 'esc to interrupt' } }))
+  expect(footer).toContain('claude-opus-5-5')
+  expect(footer).toContain('main')
+  expect(footer).toContain('91%')
+  expect(footer).toContain('#c15f3c')
+  expect(footer).toContain('$0.50')
+  expect(footer).toContain('esc to interrupt')
+  expect(footer).not.toContain('▐▛')
 })

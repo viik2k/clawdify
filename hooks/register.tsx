@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClawdifySettings } from '../types'
-import { DEFAULTS, FIELDS, PRESETS, TABS, brief, changed, clean, duration, fill, isKey, list, parseChange, pick, rewrite } from './settings'
+import { DEFAULTS, FIELDS, PRESETS, TABS, NO_USAGE, brief, changed, clawd, clean, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
 import type { Key, Tab } from './settings'
 
 const PANE = 'clawdify'
@@ -11,7 +11,8 @@ const SETTINGS = { plugin: 'clawdify', key: 'settings' } as const
 const settings = atom(SETTINGS, DEFAULTS)
 const tab = atom({ plugin: 'clawdify', key: 'tab' } as const, 'spinner')
 const CONTEXT = { plugin: 'clawdify', key: 'context' } as const
-const context = atom(CONTEXT, { cwd: '', model: '', now: 0 })
+const context = atom(CONTEXT, { cwd: '', model: '', now: 0, ...NO_USAGE })
+const frame = atom({ plugin: 'clawdify', key: 'frame' } as const, 0)
 
 const SPINNER_FIELD: Record<string, Key> = {
   thinking: 'spinnerThinking',
@@ -43,6 +44,20 @@ const refreshStatus = async ($: $) => {
   const s = await current($)
   const ctx = (await $.state.get(CONTEXT)).value
   $.ui.status(s.statusText.trim() && ctx ? fill(s.statusText, ctx) : undefined)
+}
+
+// Context fill, rate limits and cost as the status line has them, and the branch from .git/HEAD.
+const refreshUsage = async ($: $) => {
+  const old = (await $.state.get(CONTEXT)).value
+  if (!old) return
+  const usage = await $.session.usage().catch(() => undefined)
+  const limit = (kind: string) => usage?.rateLimits.find(r => r.kind === kind)?.percentUsed ?? -1
+  // ponytail: reads <cwd>/.git/HEAD only; a subfolder or a linked worktree shows no branch.
+  const head = await $.fs.read(`${old.cwd}/.git/HEAD`).catch(() => '')
+  const branch = /^ref: refs\/heads\/(.+)$/m.exec(head)?.[1] ?? head.trim().slice(0, 7)
+  const next = { branch, context: usage?.context.percent ?? -1, limit5h: limit('five_hour'), limit7d: limit('seven_day'), cost: usage?.cost?.usd ?? -1 }
+  if ((Object.keys(next) as (keyof typeof next)[]).every(key => old[key] === next[key])) return
+  await update($, context, ctx => ({ ...ctx, ...next }))
 }
 
 const save = async ($: $, change: (old: ClawdifySettings) => ClawdifySettings) => {
@@ -133,7 +148,7 @@ export const register: Register = on => {
     const saved = clean(await $.store.get('settings'))
     await update($, settings, () => ({ ...DEFAULTS, ...saved }))
     const model = await $.session.model().catch(() => '')
-    await update($, context, () => ({ cwd: e.cwd, model, now: 0 }))
+    await update($, context, () => ({ cwd: e.cwd, model, now: 0, ...NO_USAGE }))
     await $.command.register({
       name: 'clawdify',
       description: 'Customise Claude Code: spinner, footer, hint, banner, status, transcript, persona',
@@ -148,7 +163,14 @@ export const register: Register = on => {
       await refreshStatus($)
     }
     await tick()
+    await refreshUsage($)
+    $.clock.every(15000, () => void refreshUsage($))
     $.clock.every(15000, () => void tick())
+    // ponytail: one 250ms clock drives every Clawd, and only while one is animated; it redraws the band and spinner 4x a second.
+    $.clock.every(250, async () => {
+      const s = await current($)
+      if (s.mascot === 'animated' || s.spinnerSuffix.includes('{clawd}')) await update($, frame, n => n + 1)
+    })
     return next(e)
   })
 
@@ -160,6 +182,7 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
+    await refreshUsage($)
     const secs = Number((await current($)).doneToastSecs)
     if (!e.agentId && secs > 0 && e.durationMs >= secs * 1000) $.ui.toast(`Done in ${duration(e.durationMs)}`)
     return result
@@ -255,7 +278,7 @@ export const register: Register = on => {
     const verbs = list(field ? s[field] : '').length ? list(field ? s[field] : '') : list(s.spinnerVerbs)
     const props = { ...e.props }
     if (verbs.length) props.word = pick(verbs, e.props.word)
-    if (s.spinnerSuffix) props.suffix = s.spinnerSuffix
+    if (s.spinnerSuffix) props.suffix = s.spinnerSuffix.includes('{clawd}') ? s.spinnerSuffix.replaceAll('{clawd}', tinyClawd(await read($, frame))) : s.spinnerSuffix
     return next({ ...e, props })
   })
 
@@ -272,6 +295,23 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const s = await read($, settings)
+    if (s.footer.trim()) {
+      const ctx = await read($, context)
+      const { Box, Text } = $.ui.resolve(e)
+      const hint = s.hint && !e.props.isDraft && !e.props.isWorking ? s.hint : e.props.hint
+      const tail = s.hintTail.trim() ? ` · ${s.hintTail.trim()}` : ''
+      const segments = fill(s.footer, ctx).split('·').map(part => part.trim()).filter(Boolean)
+      return (
+        <Box flexDirection="row" columnGap={1}>
+          {segments.flatMap((segment, i) => {
+            const color = heat(segment) ?? (s.footerColor || undefined)
+            const text = color ? <Text key={`seg-${i}`} color={color}>{segment}</Text> : <Text key={`seg-${i}`} dimColor>{segment}</Text>
+            return i ? [<Text key={`sep-${i}`} dimColor>·</Text>, text] : [text]
+          })}
+          {hint.trim() ? <Text key="hint" dimColor>{`  ${hint.trim()}${tail}`}</Text> : null}
+        </Box>
+      )
+    }
     const props = { ...e.props }
     if (s.hint && !e.props.isDraft && !e.props.isWorking) props.hint = s.hint
     if (s.hintTail.trim()) props.tail = ` · ${s.hintTail.trim()}`
@@ -291,18 +331,31 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const s = await read($, settings)
-    if (!s.banner.trim() || e.props.hasSurvey) return next(e)
+    if ((!s.banner.trim() && !s.mascot) || e.props.hasSurvey) return next(e)
     const ctx = await read($, context)
     const { Box, Text } = $.ui.resolve(e)
+    const animated = s.mascot === 'animated'
+    const n = animated ? await read($, frame) : 0
+    const working = animated && e.props.isWorking
     const justify = s.bannerAlign === 'center' ? 'center' : s.bannerAlign === 'right' ? 'flex-end' : 'flex-start'
+    const text = fill(s.banner, ctx)
     return (
       <Box
         width={e.props.bodyColumns}
         justifyContent={justify}
+        alignItems="center"
+        columnGap={1}
         borderStyle={s.bannerBorder || undefined}
         borderColor={s.bannerBorder && s.bannerColor ? s.bannerColor : undefined}
       >
-        {s.bannerColor ? <Text color={s.bannerColor}>{fill(s.banner, ctx)}</Text> : <Text dimColor>{fill(s.banner, ctx)}</Text>}
+        {s.mascot
+          ? (
+              <Box flexDirection="column" width={animated ? 15 : 9} paddingLeft={working ? scuttle(n, 6) : 0}>
+                {clawd(n, working).map((row, i) => <Text key={`clawd-${i}`} color={s.mascotColor || '#d77757'}>{row}</Text>)}
+              </Box>
+            )
+          : null}
+        {text.trim() ? (s.bannerColor ? <Text color={s.bannerColor}>{text}</Text> : <Text dimColor>{text}</Text>) : null}
       </Box>
     )
   })
