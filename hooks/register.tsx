@@ -52,6 +52,21 @@ const current = async ($: $) => {
   return version && value ? value : stored($)
 }
 
+// Each install (marketplace, --plugin-dir, dev mod) gets its own store file. An empty one adopts the
+// newest sibling clawdify_*.json once, so settings made under another install carry over.
+const adopt = async ($: $) => {
+  if ((await $.store.get('settings')) !== undefined) return
+  const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? ''
+  const dir = `${(await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${home}/.claude`}/plugins/store`
+  const files = (await $.fs.list(dir).catch(() => []))
+    .filter(f => f.kind === 'file' && /^clawdify_.*\.json$/.test(f.name))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+  for (const f of files) {
+    const saved: unknown = await $.fs.read(`${dir}/${f.name}`).then(text => JSON.parse(text).settings).catch(() => undefined)
+    if (saved && typeof saved === 'object') return void (await $.store.set('settings', clean(saved)))
+  }
+}
+
 const load = async ($: $) => {
   const s = await stored($)
   return update($, settings, () => s)
@@ -173,6 +188,7 @@ export const register: Register = on => {
     // ponytail: clears the status entry clawdify drew up to 0.4; drop this once nobody upgrades from there.
     $.ui.status(undefined)
     cwd = e.cwd
+    await adopt($)
     await load($)
     const model = await $.session.model().catch(() => '')
     await update($, context, () => ({ cwd, model, now: 0, ...NO_USAGE }))

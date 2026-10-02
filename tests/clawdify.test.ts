@@ -5,7 +5,8 @@ import type { Engine } from 'claude-code/testing'
 import { NO_USAGE, fill, rewrite } from '../hooks/settings'
 
 // The test's own hooks stand for the engine: the last props the plugin passed down, and stubs for the rest.
-const engine = (on: On, stored?: Record<string, unknown>) => {
+// others: store files other installs of clawdify left, by name, oldest first.
+const engine = (on: On, stored?: Record<string, unknown>, others: Record<string, string> = {}) => {
   // The saved settings file, open to the test so it can edit it as Claude would.
   const disk: Record<string, unknown> = { ...stored }
   on('store.get', (_, e) => ({ value: disk[e.key] }))
@@ -31,7 +32,9 @@ const engine = (on: On, stored?: Record<string, unknown>) => {
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
   on('ui.copy', () => ({ value: { isCopied: true as const } }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200000, percent: 91 }, rateLimits: [{ kind: 'five_hour', percentUsed: 12 }], cost: { usd: 0.5 } } }))
-  on('fs.read', () => ({ value: 'ref: refs/heads/main\n' }))
+  mock.env(on, { USERPROFILE: 'C:/Users/me' })
+  on('fs.list', () => ({ value: Object.keys(others).map((name, i) => ({ name, kind: 'file' as const, size: 1, mtimeMs: i, isLink: false })) }))
+  on('fs.read', (_, e) => ({ value: others[e.path.split(/[\\/]/).at(-1) ?? ''] ?? 'ref: refs/heads/main\n' }))
   return seen
 }
 
@@ -219,6 +222,16 @@ test('a stock loop plays at its own pace while working and glances about while i
   }
   expect(poses.size).toBeGreaterThan(2)
   expect([...poses].join()).toContain('▙███▟')
+})
+
+test('a fresh install adopts the newest settings another install saved', async ($, on) => {
+  const seen = engine(on, undefined, {
+    'clawdify_inline-old.json': '{"settings":{"doneVerbs":"Stale"}}',
+    'other_x.json': '{"settings":{"doneVerbs":"Wrong"}}',
+    'clawdify_inline-new.json': '{"settings":{"doneVerbs":"Clawed","evil":1}}',
+  })
+  await start($)
+  expect(seen.disk.settings).toEqual({ doneVerbs: 'Clawed' })
 })
 
 test('settings survive a /clear, and edits to the saved file land on /clawdify reload', async ($, on) => {
