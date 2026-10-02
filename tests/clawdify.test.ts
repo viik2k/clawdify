@@ -8,7 +8,7 @@ import { NO_USAGE, fill, rewrite } from '../hooks/settings'
 const engine = (on: On, stored?: Record<string, unknown>) => {
   mock.store(on, stored)
   const clock = mock.clock(on)
-  const seen: { props?: Record<string, unknown>; clock: typeof clock } = { clock }
+  const seen: { props?: Record<string, unknown>; clock: typeof clock; statuses: (string | undefined)[] } = { clock, statuses: [] }
   on('ui.render', ($, e) => {
     seen.props = e.props as Record<string, unknown>
     const { Text } = $.ui.resolve(e)
@@ -16,7 +16,10 @@ const engine = (on: On, stored?: Record<string, unknown>) => {
   })
   on('session.start', (_, e) => e)
   on('command.register', (_, e) => ({ value: { command: e.name } }))
-  on('ui.status', () => ({ value: undefined }))
+  on('ui.status', (_, e) => {
+    seen.statuses.push(e.text)
+    return { value: undefined }
+  })
   on('ui.toast', () => ({ value: undefined }))
   on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' as const }] }))
   on('session.model', () => ({ value: 'claude-opus-5-5' }))
@@ -150,7 +153,7 @@ test('/clawdify <request> asks the model and applies only known keys', async ($,
   expect((await command($, 'do nothing')).text).toContain('Nothing to change')
 })
 
-test('preset clawd draws Clawd above the prompt and he scuttles while working', async ($, on) => {
+test('preset clawd draws Clawd above the prompt only, scuttling while working', async ($, on) => {
   const seen = engine(on)
   await start($)
   await command($, 'preset clawd')
@@ -167,7 +170,7 @@ test('preset clawd draws Clawd above the prompt and he scuttles while working', 
   expect(poses.size).toBeGreaterThan(1)
 
   await $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'a', props: SPINNER })
-  expect(String(seen.props?.suffix)).toContain('▐▛███▜▌')
+  expect(seen.props?.suffix).toBe('…')
   expect(String(seen.props?.word)).not.toBe('Sauteing')
 })
 
@@ -183,4 +186,15 @@ test('the clawd footer replaces the hint row with live usage and no Clawd', asyn
   expect(footer).toContain('$0.50')
   expect(footer).toContain('esc to interrupt')
   expect(footer).not.toContain('▐▛')
+})
+
+test('an old status line moves into the footer, Clawd stripped, and the status entry is cleared', async ($, on) => {
+  const seen = engine(on, { settings: { statusText: '{clawd} 🦀 ▐▛███▜▌ {model} · {date}' } })
+  await start($)
+  expect(seen.statuses).toEqual([undefined])
+  const footer = JSON.stringify(await $.ui.render({ surface: 'terminal', component: 'PromptHint', requestId: 'h', props: { isDraft: false, isWorking: false, hint: '? for shortcuts' } }))
+  expect(footer).toContain('claude-opus-5-5')
+  expect(footer).not.toContain('▐')
+  expect(footer).not.toContain('🦀')
+  expect(footer).not.toContain('{clawd}')
 })

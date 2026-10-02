@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { ClawdifySettings } from '../types'
-import { DEFAULTS, FIELDS, PRESETS, TABS, NO_USAGE, brief, changed, clawd, clean, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
+import { DEFAULTS, FIELDS, PRESETS, TABS, NO_USAGE, brief, unclawd, changed, clawd, clean, duration, fill, heat, isKey, list, parseChange, pick, rewrite, scuttle, tinyClawd } from './settings'
 import type { Key, Tab } from './settings'
 
 const PANE = 'clawdify'
@@ -40,12 +40,6 @@ type $ = EngineInterface
 
 const current = async ($: $) => (await $.state.get(SETTINGS)).value ?? DEFAULTS
 
-const refreshStatus = async ($: $) => {
-  const s = await current($)
-  const ctx = (await $.state.get(CONTEXT)).value
-  $.ui.status(s.statusText.trim() && ctx ? fill(s.statusText, ctx) : undefined)
-}
-
 // Context fill, rate limits and cost as the status line has them, and the branch from .git/HEAD.
 const refreshUsage = async ($: $) => {
   const old = (await $.state.get(CONTEXT)).value
@@ -63,7 +57,6 @@ const refreshUsage = async ($: $) => {
 const save = async ($: $, change: (old: ClawdifySettings) => ClawdifySettings) => {
   const next = await update($, settings, change)
   await $.store.set('settings', changed(next))
-  await refreshStatus($)
   return next
 }
 
@@ -145,6 +138,8 @@ const ask = async ($: $, request: string) => {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    // ponytail: clears the status entry clawdify drew up to 0.4; drop this once nobody upgrades from there.
+    $.ui.status(undefined)
     const saved = clean(await $.store.get('settings'))
     await update($, settings, () => ({ ...DEFAULTS, ...saved }))
     const model = await $.session.model().catch(() => '')
@@ -160,7 +155,6 @@ export const register: Register = on => {
       // Only write when the minute changes, so {time} readers redraw once a minute at most.
       if (old?.now && Math.floor(old.now / 60000) === Math.floor(now / 60000)) return
       await update($, context, ctx => ({ ...ctx, now }))
-      await refreshStatus($)
     }
     await tick()
     await refreshUsage($)
@@ -295,12 +289,12 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const s = await read($, settings)
-    if (s.footer.trim()) {
+    if (unclawd(s.footer)) {
       const ctx = await read($, context)
       const { Box, Text } = $.ui.resolve(e)
       const hint = s.hint && !e.props.isDraft && !e.props.isWorking ? s.hint : e.props.hint
       const tail = s.hintTail.trim() ? ` · ${s.hintTail.trim()}` : ''
-      const segments = fill(s.footer, ctx).split('·').map(part => part.trim()).filter(Boolean)
+      const segments = fill(unclawd(s.footer), ctx).split('·').map(part => part.trim()).filter(Boolean)
       return (
         <Box flexDirection="row" columnGap={1}>
           {segments.flatMap((segment, i) => {

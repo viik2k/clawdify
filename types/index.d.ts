@@ -20,7 +20,6 @@ export type ClawdifySettings = {
   bannerAlign: string
   mascot: string
   mascotColor: string
-  statusText: string
   userPrefix: string
   userColor: string
   replyRewrites: string

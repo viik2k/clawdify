@@ -25,7 +25,6 @@ export const DEFAULTS: ClawdifySettings = {
   bannerAlign: '',
   mascot: '',
   mascotColor: '',
-  statusText: '',
   userPrefix: '',
   userColor: '',
   replyRewrites: '',
@@ -63,7 +62,6 @@ export const FIELDS: readonly Field[] = [
   { key: 'bannerAlign', tab: 'banner', label: 'Banner align', hint: '', options: ['', 'center', 'right'] },
   { key: 'mascot', tab: 'banner', label: 'Clawd', hint: '', options: ['', 'still', 'animated'] },
   { key: 'mascotColor', tab: 'banner', label: 'Clawd colour', hint: '#d77757 (Claude orange)' },
-  { key: 'statusText', tab: 'banner', label: 'Status line', hint: '{model} · {date} {time}' },
   { key: 'userPrefix', tab: 'transcript', label: 'Your prompt prefix', hint: '❯' },
   { key: 'userColor', tab: 'transcript', label: 'Your prompt colour', hint: 'cyan' },
   { key: 'replyRewrites', tab: 'transcript', label: 'Reply rewrites', hint: 'you=>ye; /\\bhello\\b/gi=>ahoy' },
@@ -78,9 +76,9 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     spinnerThinking: 'Reckoning, Mulling it over, Having a squiz, Yarning with meself, Cooking up a ripper, Chewing the fat, Having a good ponder, Fair dinkum thinking',
     spinnerTools: 'Wrenching, Scuttling about, Giving it a burl, Whacking it on the barbie, Tinkering',
     spinnerResponding: 'Scribbling, Typing up a beauty, Spinning a yarn, Penning a ripper',
-    spinnerSuffix: ' {clawd}',
+    spinnerSuffix: '',
     doneVerbs: 'Clawed, Snipped, Scuttled, Nailed it, Sorted',
-    doneTemplate: '{clawd} {word} in {time}, no worries',
+    doneTemplate: '{word} in {time}, no worries',
     doneColor: '#d77757',
     hint: "she'll be right",
     hintTail: 'snip snip, legend',
@@ -93,7 +91,6 @@ export const PRESETS: Record<string, Partial<ClawdifySettings>> = {
     mascotColor: '#d77757',
     footer: '{model} · {cwd} {branch} · ctx {ctxbar} {context} · 5h {5h} · 7d {7d} · {cost}',
     footerColor: '#d77757',
-    statusText: '',
     userPrefix: '❯',
     userColor: '#d97757',
     persona: 'Warm, friendly and a touch cheeky, with light Australian flavour. Keep code, commands and technical details exact.',
@@ -238,8 +235,15 @@ export const clean = (raw: unknown): Partial<ClawdifySettings> => {
     const value = (raw as Record<string, unknown>)[key]
     if (typeof value === 'string') out[key] = value
   }
+  // Up to 0.4 a separate status line sat under the prompt; it lives in the footer now.
+  const status = (raw as Record<string, unknown>).statusText
+  if (!out.footer && typeof status === 'string') out.footer = status
   return out
 }
+
+// The row under the prompt stays neat: no Clawd there, whether as the token, pasted art or the emoji.
+export const unclawd = (text: string) =>
+  text.replace(/\{clawd\}|[▐▛█▜▌▝▘▗▖▟▙]+|🦀/gu, '').replace(/ {2,}/g, ' ').trim()
 
 export const isKey = (key: string): key is Key => key in DEFAULTS
 
@@ -253,8 +257,8 @@ export const brief = (s: ClawdifySettings) => [
   'Reply with ONE JSON object and nothing else: setting keys to string values, only the keys to change. "" restores Claude Code\'s default. Reply {} if nothing fits.',
   'Settings:',
   ...FIELDS.map(f => `- ${f.key} (${f.tab}): ${f.label}${f.options ? `; one of ${f.options.map(o => JSON.stringify(o)).join(', ')}` : `; e.g. ${f.hint}`}`),
-  "The mascot is Clawd, Claude Code's own pixel crab, never the 🦀 emoji: mascot draws him above the prompt (animated: blinks idle, scuttles while working); {clawd} in any text is a one-row Clawd, animated in spinnerSuffix. Claude's colours are warm: #d77757 orange, #c15f3c rust, #f0eee6 cream.",
-  'footer replaces the row under the prompt (the line with "? for shortcuts"); segments split on " · ", tokens {branch} {context} {ctxbar} {5h} {7d} {cost} plus the template ones. Keep Clawd out of footer and statusText: he belongs in mascot, the banner, the spinner and the done line.',
+  "The mascot is Clawd, Claude Code's own pixel crab, never the 🦀 emoji. mascot draws him above the prompt (animated: blinks idle, scuttles while working), and that is the one place he goes. Only if the user asks for him somewhere specific, {clawd} is a one-row Clawd (animated in spinnerSuffix). Claude's colours are warm: #d77757 orange, #c15f3c rust, #f0eee6 cream.",
+  'footer replaces the row under the prompt (the line with "? for shortcuts"); segments split on " · ", tokens {branch} {context} {ctxbar} {5h} {7d} {cost} plus the template ones. Clawd is never drawn in the footer.',
   'Lists are comma-separated. Colours are names (green, magenta, gray, ...) or #rrggbb. Template tokens: {model} {cwd} {path} {time} {date}; in doneTemplate {word} is the done word and {time} the turn length.',
   'replyRewrites is display-only find/replace on Claude\'s replies: "a=>b; /re/flags=>c". persona is text added to Claude\'s system prompt.',
   `Presets to borrow from: ${JSON.stringify(PRESETS)}`,
